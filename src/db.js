@@ -39,7 +39,7 @@ db.exec(`Create table if not exists reservations (
     status           TEXT NOT NULL DEFAULT 'confirmed'
                      CHECK (status IN ('confirmed', 'cancelled')),
     created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE (user_id, idempotency_key)`)
+    UNIQUE (user_id, idempotency_key);`)
     
 db.exec(`Create table if not exists user_show_seats (
     show_id   TEXT NOT NULL REFERENCES shows(id),
