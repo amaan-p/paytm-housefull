@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 
 const SECRET = process.env.JWT_SECRET;
 if (!SECRET) {
-  throw new Error('JWT_SECRET is not set');   // fail closed: no secret, no start
+  throw new Error('JWT_SECRET is not set');  
 }
 
 export function signToken(userId, role = 'user') {
