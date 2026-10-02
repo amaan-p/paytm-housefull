@@ -27,3 +27,23 @@ db.exec(`Create table if not exists seats (
     reservation_id  TEXT,
     PRIMARY KEY (show_id, label)
   );`);
+
+db.exec(`Create table if not exists reservations (
+    id               TEXT PRIMARY KEY,
+    show_id          TEXT NOT NULL REFERENCES shows(id),
+    user_id          TEXT NOT NULL,
+    idempotency_key  TEXT NOT NULL,
+    request_hash     TEXT NOT NULL,
+    seats            TEXT NOT NULL,
+    amount_paise     INTEGER NOT NULL CHECK (amount_paise > 0),
+    status           TEXT NOT NULL DEFAULT 'confirmed'
+                     CHECK (status IN ('confirmed', 'cancelled')),
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (user_id, idempotency_key)`)
+    
+db.exec(`Create table if not exists user_show_seats (
+    show_id   TEXT NOT NULL REFERENCES shows(id),
+    user_id   TEXT NOT NULL,
+    count     INTEGER NOT NULL DEFAULT 0 CHECK (count >= 0),
+    PRIMARY KEY (show_id, user_id)
+);`);
