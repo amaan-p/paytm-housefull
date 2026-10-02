@@ -6,7 +6,14 @@ A small seat-reservation service for one job: a show goes on sale, thousands of 
 
 Node.js + Express + SQLite (`better-sqlite3`). Prometheus metrics, structured JSON logs, and a one-command burst script that storms the live service and checks every rule.
 
-**Live:** `<LIVE_URL>` · **Metrics:** `<LIVE_URL>/metrics` · **Health:** `<LIVE_URL>/health/ready`
+| | |
+|---|---|
+| **Live** | https://paytm-housefull-production.up.railway.app |
+| **Metrics** | https://paytm-housefull-production.up.railway.app/metrics |
+| **Health** | https://paytm-housefull-production.up.railway.app/health/ready |
+| **Logs under load** (screen recording) | https://drive.google.com/file/d/1MAXWREGsNJ-8TF3yZ9_M86RCRJ95E1DP/view?usp=sharing |
+
+It runs on Railway (Singapore): one container built from this repo's `Dockerfile`, with the SQLite file on a persistent volume at `/data`. The admin key for creating shows and running the burst is shared separately, not committed here.
 
 The design reasoning (atomic decision, idempotency, failure modes, AI usage) is in [WRITEUP.md](WRITEUP.md).
 
@@ -17,8 +24,7 @@ The design reasoning (atomic decision, idempotency, failure modes, AI usage) is 
 You need Node 24+ and pnpm.
 
 ```bash
-pnpm install
-pnpm approve-builds          # allow better-sqlite3 to fetch its native binary
+pnpm install                 # better-sqlite3 ships prebuilt binaries: no compiler needed
 cp .env.example .env         # then set JWT_SECRET and ADMIN_KEY
 pnpm dev                     # http://localhost:3000
 ```
@@ -135,7 +141,7 @@ This reproduces the on-sale stampede against any URL, then checks every correctn
 ```bash
 ADMIN_KEY=<server's admin key> pnpm burst <BASE_URL>
 # e.g.
-ADMIN_KEY=... pnpm burst https://<LIVE_URL>
+ADMIN_KEY=... pnpm burst https://paytm-housefull-production.up.railway.app
 ```
 
 On PowerShell: `$env:ADMIN_KEY="..."; pnpm burst <BASE_URL>`
@@ -148,41 +154,55 @@ What it does, on a fresh show of 200 seats:
 
 Tune it with env vars: `SEATS`, `HOT_SEATS`, `HOT_USERS` (per hot seat), `REQUESTS`, `USERS`, `CONCURRENCY` (in-flight requests, default 300).
 
-Sample run (local):
+### Live run against the deployed service
+
+17,511 requests in 24.1s from a laptop in India to Railway Singapore:
 
 ```
+burst → https://paytm-housefull-production.up.railway.app
+show a40ee327-1030-455c-a3ae-13c265de05b3: 200 seats, limit 4/user
+
+=== outcome distribution (24.1s) ===
+
 hot-seat storm (2500 requests)
   declined:seat_taken                  2495
   confirmed                               5
 
 stampede (15000 requests)
-  declined:seat_taken                 14704
-  confirmed                             176
-  replay                                 90
-  declined:idempotency_key_reused        30
+  declined:seat_taken                 14655
+  confirmed                             174
+  replay                                136
+  declined:idempotency_key_reused        35
 
 limit test (11 requests)
   declined:per_user_limit                 6
   confirmed                               5
 
-=== reconciliation ===
+=== reconciliation: show a40ee327-1030-455c-a3ae-13c265de05b3 ===
   available 0 + held 0 + confirmed 200 = 200 (total 200)
 
 === checks ===
-  PASS  hot seat A1..A5: exactly one winner  (1 winners of 500)
+  PASS  hot seat A1: exactly one winner  (1 winners of 500)
+  PASS  hot seat A2: exactly one winner  (1 winners of 500)
+  PASS  hot seat A3: exactly one winner  (1 winners of 500)
+  PASS  hot seat A4: exactly one winner  (1 winners of 500)
+  PASS  hot seat A5: exactly one winner  (1 winners of 500)
   PASS  per-user limit holds under 10 parallel requests  (4 confirmed (limit 4))
-  PASS  spoofed body user_id is ignored
+  PASS  spoofed body user_id is ignored  (booked as spoofer)
   PASS  cannot cancel someone else's reservation  (got 404)
-  PASS  available + held + confirmed == total_seats
-  PASS  no seat confirmed to two reservations
-  PASS  confirmed seats in API == seats in 201 responses
-  PASS  no user above per_user_limit
-  PASS  zero 5xx across the burst
-  PASS  metrics seats_available / seats_confirmed == API
-  PASS  reservations_confirmed_total moved by exactly our bookings
+  PASS  available + held + confirmed == total_seats  (0 + 0 + 200 = 200 / 200)
+  PASS  no seat confirmed to two reservations  (0 double-sold seats)
+  PASS  confirmed seats in API == seats in 201 responses  (API 200, responses 200)
+  PASS  no user above per_user_limit  (max seats held by one user: 3)
+  PASS  zero 5xx across the burst  (0 x 5xx)
+  PASS  metrics seats_available == API  (metrics 0, API 0)
+  PASS  metrics seats_confirmed == API  (metrics 200, API 200)
+  PASS  reservations_confirmed_total moved by exactly our bookings  (delta 184, bookings seen 184)
 
 ALL CHECKS PASSED
 ```
+
+**Cold start:** after a Railway restart, `/health/ready` came back 200 and the show above was still there with 200/200 confirmed. The data is on the volume, and the seat gauges were correct again on the first scrape, because they're read from the DB.
 
 ### Reset between runs
 
@@ -220,7 +240,7 @@ These are JSON lines on stdout, one per request plus one per reservation outcome
 
 Declines log at `info`, because they're normal at on-sale. Only 5xx logs at `error`. Tokens and the admin key are redacted.
 
-Live logs: `<LOGS_LINK_OR_RECORDING>`
+**Live logs under load:** Railway logs aren't publicly viewable, so here's a screen recording of the deploy logs streaming during a live burst: https://drive.google.com/file/d/1MAXWREGsNJ-8TF3yZ9_M86RCRJ95E1DP/view?usp=sharing
 
 ---
 
@@ -251,4 +271,6 @@ src/
 scripts/
   burst.js           the stampede + reconciliation
   reset.js           wipe data between runs
+Dockerfile           the image that runs in production
+railway.json         1 replica, never sleeps, health check on /health/ready
 ```
