@@ -122,10 +122,19 @@ showsRouter.post("/:id/reserve", requireUser, (req, res) => {
     if (replayed) reservationsDeclined.inc({ reason: 'idempotent_replay' });
     else reservationsConfirmed.inc();
 
+    req.log.info({
+      event: replayed ? 'reservation_replayed' : 'reservation_confirmed',
+      reservation_id: reservation.reservation_id,
+      show_id: req.params.id, user_id: req.user.id, seats,
+    });
     return res.status(201).json(reservation);
   } catch (err) {
     if (!err.isDomain) throw err; // real bug → error handler → 500
     reservationsDeclined.inc({ reason: err.code });
+    req.log.info({
+      event: 'reservation_declined', reason: err.code,
+      show_id: req.params.id, user_id: req.user.id, seats,
+    });
     return res.status(err.status).json({ error: err.code });
   }
 })
