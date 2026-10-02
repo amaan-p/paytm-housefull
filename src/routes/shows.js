@@ -1,7 +1,7 @@
 import express from "express"
 import {db} from '../db.js'
 import { randomUUID } from 'node:crypto';
-import { requireAdmin } from '../auth.js';
+import { requireAdmin, requireUser } from '../auth.js';
 import { reserve } from '../reservations.js';
 
 export const showsRouter =express.Router()
@@ -100,14 +100,16 @@ showsRouter.post("/:id/reserve", requireUser, (req, res) => {
   const { seats, idempotency_key } = req.body ?? {};
   const key = req.get('idempotency-key') ?? idempotency_key;
 
-  if (!Array.isArray(seats) || seats.length !== 1 || typeof seats[0] !== 'string') {
-    return res.status(400).json({ error: 'validation_failed', message: 'seats must be an array with one seat label' });
+  if (!Array.isArray(seats) || seats.length === 0 || seats.length > 50
+      || !seats.every(s => typeof s === 'string' && s.length > 0)
+      || new Set(seats).size !== seats.length) {
+    return res.status(400).json({ error: 'validation_failed', message: 'seats must be 1-50 unique seat labels' });
   }
   if (typeof key !== 'string' || key.length === 0 || key.length > 128) {
     return res.status(400).json({ error: 'validation_failed', message: 'idempotency_key required (1-128 chars)' });
   }
 
-  const reservation = reserve({
+  const { reservation } = reserve({
     showId: req.params.id,
     userId: req.user.id,
     seats,
