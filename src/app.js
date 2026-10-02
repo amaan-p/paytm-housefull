@@ -1,11 +1,11 @@
 import express from "express"
 import { showsRouter } from './routes/shows.js'
+import { authRouter } from './routes/auth.js';
 
 export const app = express()
 
 //so that big seat list can fit 
 app.use(express.json({ limit: '1mb' }));
-
 
 app.get("/health/live",(req,res)=>{
     res.json({status:"OK"})
@@ -14,7 +14,7 @@ app.get("/health/live",(req,res)=>{
 
 //ROUTESS
 app.use('/shows', showsRouter)
-
+app.use('/auth', authRouter);
 //takes care of unknown routes
 app.use((req, res) => {
   res.status(404).json({ error: 'endpoint_not_found' });

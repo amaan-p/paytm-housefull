@@ -1,6 +1,7 @@
 import express from "express"
 import {db} from '../db.js'
 import { randomUUID } from 'node:crypto';
+import { requireAdmin } from '../auth.js';
 
 export const showsRouter =express.Router()
 const MAX_SEATS = Number(process.env.MAX_SEATS) || 50000;
@@ -67,7 +68,7 @@ showsRouter.get("/:id",(req,res)=>{
 })
 
 
-showsRouter.post("/",(req,res)=>{
+showsRouter.post("/",requireAdmin,(req,res)=>{
       const error = validateCreateShow(req.body);
   if (error) {
     return res.status(400).json({ error: 'validation_failed', message: error });
