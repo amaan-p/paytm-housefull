@@ -2,6 +2,7 @@ import express from "express"
 import {db} from '../db.js'
 import { randomUUID } from 'node:crypto';
 import { requireAdmin } from '../auth.js';
+import { reserve } from '../reservations.js';
 
 export const showsRouter =express.Router()
 const MAX_SEATS = Number(process.env.MAX_SEATS) || 50000;
@@ -68,6 +69,7 @@ showsRouter.get("/:id",(req,res)=>{
 })
 
 
+//add show
 showsRouter.post("/",requireAdmin,(req,res)=>{
       const error = validateCreateShow(req.body);
   if (error) {
@@ -90,4 +92,27 @@ res.status(201).json({
     seats: seats.map(label => ({ label, status: 'available' })),
     counts: { available: seats.length, held: 0, confirmed: 0 },
   });
+})
+
+
+//reservation
+showsRouter.post("/:id/reserve", requireUser, (req, res) => {
+  const { seats, idempotency_key } = req.body ?? {};
+  const key = req.get('idempotency-key') ?? idempotency_key;
+
+  if (!Array.isArray(seats) || seats.length !== 1 || typeof seats[0] !== 'string') {
+    return res.status(400).json({ error: 'validation_failed', message: 'seats must be an array with one seat label' });
+  }
+  if (typeof key !== 'string' || key.length === 0 || key.length > 128) {
+    return res.status(400).json({ error: 'validation_failed', message: 'idempotency_key required (1-128 chars)' });
+  }
+
+  const reservation = reserve({
+    showId: req.params.id,
+    userId: req.user.id,
+    seats,
+    idempotencyKey: key,
+  });
+
+  res.status(201).json(reservation);
 })
