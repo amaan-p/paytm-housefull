@@ -1,4 +1,5 @@
 import express from "express"
+import { showsRouter } from './routes/shows.js'
 
 export const app = express()
 
@@ -10,10 +11,14 @@ app.get("/health/live",(req,res)=>{
     res.json({status:"OK"})
 })
 
+
+//ROUTESS
+app.use('/shows', showsRouter)
+
 //takes care of unknown routes
 app.use((req, res) => {
   res.status(404).json({ error: 'endpoint_not_found' });
-});
+})
 
 // basic error handling 
 app.use((err, req, res, next) => {
@@ -25,4 +30,4 @@ app.use((err, req, res, next) => {
   }
   console.error(err);
   res.status(500).json({ error: 'internal_error' });
-});
+})
