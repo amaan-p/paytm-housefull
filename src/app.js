@@ -1,6 +1,7 @@
 import express from "express"
 import { showsRouter } from './routes/shows.js'
 import { authRouter } from './routes/auth.js';
+import { reservationsRouter } from './routes/reservations.js';
 
 export const app = express()
 
@@ -15,6 +16,8 @@ app.get("/health/live",(req,res)=>{
 //ROUTESS
 app.use('/shows', showsRouter)
 app.use('/auth', authRouter);
+app.use('/reservations', reservationsRouter);
+
 //takes care of unknown routes
 app.use((req, res) => {
   res.status(404).json({ error: 'endpoint_not_found' });
