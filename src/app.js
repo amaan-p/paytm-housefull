@@ -2,15 +2,31 @@ import express from "express"
 import { showsRouter } from './routes/shows.js'
 import { authRouter } from './routes/auth.js';
 import { reservationsRouter } from './routes/reservations.js';
+import { register, httpDuration } from './metrics.js';
+
 
 export const app = express()
 
 //so that big seat list can fit 
 app.use(express.json({ limit: '1mb' }));
 
+app.use((req, res, next) => {
+  const end = httpDuration.startTimer();
+  res.on('finish', () => {
+    const route = req.route ? req.baseUrl + req.route.path : 'unmatched';
+    end({ method: req.method, route, status: res.statusCode });
+  });
+  next();
+});
+
 app.get("/health/live",(req,res)=>{
     res.json({status:"OK"})
 })
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.send(await register.metrics());
+});
 
 
 //ROUTESS

@@ -3,6 +3,7 @@ import {db} from '../db.js'
 import { randomUUID } from 'node:crypto';
 import { requireAdmin, requireUser } from '../auth.js';
 import { reserve } from '../reservations.js';
+import { reservationsConfirmed, reservationsDeclined } from '../metrics.js';
 
 export const showsRouter =express.Router()
 const MAX_SEATS = Number(process.env.MAX_SEATS) || 50000;
@@ -109,12 +110,22 @@ showsRouter.post("/:id/reserve", requireUser, (req, res) => {
     return res.status(400).json({ error: 'validation_failed', message: 'idempotency_key required (1-128 chars)' });
   }
 
-  const { reservation } = reserve({
-    showId: req.params.id,
-    userId: req.user.id,
-    seats,
-    idempotencyKey: key,
-  });
+  try {
+    const { reservation, replayed } = reserve({
+      showId: req.params.id,
+      userId: req.user.id,
+      seats,
+      idempotencyKey: key,
+    });
 
-  res.status(201).json(reservation);
+    // a replay returns the original booking but is NOT a new confirmation
+    if (replayed) reservationsDeclined.inc({ reason: 'idempotent_replay' });
+    else reservationsConfirmed.inc();
+
+    return res.status(201).json(reservation);
+  } catch (err) {
+    if (!err.isDomain) throw err; // real bug → error handler → 500
+    reservationsDeclined.inc({ reason: err.code });
+    return res.status(err.status).json({ error: err.code });
+  }
 })
