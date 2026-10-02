@@ -3,6 +3,7 @@ import {db} from '../db.js'
 import { randomUUID } from 'node:crypto';
 
 export const showsRouter =express.Router()
+const MAX_SEATS = Number(process.env.MAX_SEATS) || 50000;
 
 //queries 
 const getShow=db.prepare(`select * from shows WHERE id = ?`)
@@ -21,6 +22,31 @@ const createShow = db.transaction((show, seats) => {
     insertSeat.run(show.id, label);
   }
 });
+
+
+//validator
+function validateCreateShow(body) {
+  const { name, seats, price_paise, per_user_limit = 4 } = body ?? {};
+
+  if (typeof name !== 'string' || name.trim() === '')
+    return 'name must be a non-empty string';
+  if (!Array.isArray(seats) || seats.length === 0)
+    return 'seats must be a non-empty array';
+  if (seats.length > MAX_SEATS)
+    return `seats cannot exceed ${MAX_SEATS}`;
+  if (!seats.every(s => typeof s === 'string' && s.trim() !== ''))
+    return 'each seat must be a non-empty string';
+  if (new Set(seats).size !== seats.length)
+    return 'duplicate seat labels';
+  if (!Number.isSafeInteger(price_paise) || price_paise <= 0)
+    return 'price_paise must be a positive integer (paise)';
+  if (!Number.isSafeInteger(per_user_limit) || per_user_limit <= 0)
+    return 'per_user_limit must be a positive integer';
+
+  return null;
+}
+
+
 
 //ROUTES////////
 
@@ -42,6 +68,10 @@ showsRouter.get("/:id",(req,res)=>{
 
 
 showsRouter.post("/",(req,res)=>{
+      const error = validateCreateShow(req.body);
+  if (error) {
+    return res.status(400).json({ error: 'validation_failed', message: error });
+  }
   const { name, seats, price_paise, per_user_limit = 4 } = req.body;
   
   const show = {
