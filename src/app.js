@@ -2,6 +2,7 @@ import express from "express"
 import { showsRouter } from './routes/shows.js'
 import { authRouter } from './routes/auth.js';
 import { reservationsRouter } from './routes/reservations.js';
+import { adminRouter } from './routes/admin.js';
 import { register, httpDuration } from './metrics.js';
 import { pinoHttp } from 'pino-http';
 import { randomUUID } from 'node:crypto';
@@ -70,6 +71,7 @@ app.get('/metrics', async (req, res) => {
 app.use('/shows', showsRouter)
 app.use('/auth', authRouter);
 app.use('/reservations', reservationsRouter);
+app.use('/admin', adminRouter);
 
 //takes care of unknown routes
 app.use((req, res) => {
